@@ -1,17 +1,5 @@
 ### 使用JAVA Web实现商店网站
 
-#### 部署和访问
-- 安装docker
-- 执行部署脚本bash ./deployment/deploy.sh
-- 浏览器访问
-  - 前台 http://localhost:8080/my_store/
-  - 后台 http://localhost:8080/my_store/admin/
-
-
-#### 界面
-https://github.com/wenlin-gk/my_store/assets/44137845/07f929b2-e79b-4dab-9be0-ef3096c5625a
-
-
 #### 需求分析
 - 用户和商家，通过浏览器访问本网站，进行商品交易；
 - 商家，上传商品信息；
@@ -21,6 +9,18 @@ https://github.com/wenlin-gk/my_store/assets/44137845/07f929b2-e79b-4dab-9be0-ef
 
 #### 支持的功能：
   用户的管理（注册/激活/登入/登出），（商品）分类的管理，商品的管理，订单的管理。
+
+
+#### 界面
+https://github.com/wenlin-gk/my_store/assets/44137845/07f929b2-e79b-4dab-9be0-ef3096c5625a
+
+
+#### 部署和访问
+- 安装docker
+- 执行部署脚本bash ./deployment/deploy.sh
+- 浏览器访问
+  - 前台 http://localhost:8080/my_store/
+  - 后台 http://localhost:8080/my_store/admin/
 
 
 #### 实体对象的设计：
