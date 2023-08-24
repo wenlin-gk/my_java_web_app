@@ -9,6 +9,7 @@
 
 
 #### 界面
+https://github.com/wenlin-gk/my_store/assets/44137845/07f929b2-e79b-4dab-9be0-ef3096c5625a
 
 
 #### 需求分析
