@@ -16,7 +16,8 @@ https://github.com/wenlin-gk/my_store/assets/44137845/07f929b2-e79b-4dab-9be0-ef
 
 
 #### 部署和访问
-- 安装docker
+- 已验证系统环境：Linux version 4.15.0-55-generic  ubuntu-16.04.10
+- 安装Docker-18.09.7，Maven-3.8.6
 - 执行部署脚本bash ./deployment/deploy.sh
 - 浏览器访问
   - 前台 http://localhost:8080/my_store/
