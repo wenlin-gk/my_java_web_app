@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Configuration status="WARN"> <!-- status : 指定log4j本身的打印日志的级别 -->
+  <!-- 日志的级别ALL/Trace/DEBUG/INFO/WARN/ERROR/FATAL/OFF -->
+  <!-- Property值不要加"" -->
+  <Properties>
+    <Property name="LOG_FILE">${env:LOG_FILE:-/home/wenlin/store.log}</Property>
+    <Property name="LOG_LEVEL">${env:LOG_LEVEL:-DEBUG}</Property>
+    <property name="PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36}-%L - %msg%n</property>
+  </Properties>
+
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <ThresholdFilter level="${LOG_LEVEL}" onMatch="ACCEPT" onMismatch="DENY" />
+      <PatternLayout pattern="${PATTERN}" />
+    </Console>
+    <File name="log" fileName="${LOG_FILE}" append="false">
+      <ThresholdFilter level="${LOG_LEVEL}" onMatch="ACCEPT" onMismatch="DENY" />
+      <PatternLayout pattern="${PATTERN}" />
+    </File>
+    <File name="fatal" fileName="${LOG_FILE}.fatal" append="true">
+      <ThresholdFilter level="FATAL" onMatch="ACCEPT" onMismatch="DENY" />
+      <PatternLayout pattern="${PATTERN}" />
+    </File>
+  </Appenders>
+
+  <Loggers>
+    <root level="all">
+      <appender-ref ref="Console" />
+      <appender-ref ref="log" />
+      <appender-ref ref="fatal" />
+    </root>
+  </Loggers>
+</Configuration>

@@ -1,0 +1,336 @@
+使用JAVA Web实现商店网站
+
+部署和访问
+  安装docker
+  执行部署脚本bash ./deployment/deploy.sh
+  浏览器访问
+    前台 http://localhost:8080/my_store/
+    后台 http://localhost:8080/my_store/admin/
+
+需求分析
+  用户和商家，通过浏览器访问本网站，进行商品交易；
+  商家，上传商品信息；
+  用户，查看商品，将想购买的商品添加到购物车，以购物车为单元生成订单，支付订单；
+  商家，查看已支付订单，将订单设置为已寄出。（和现实的订单逻辑相比，这里的订单逻辑进行了简化）
+
+
+支持的功能：
+  用户的管理（注册/激活/登入/登出），（商品）分类的管理，商品的管理，订单的管理。
+
+
+实体对象的设计：
+  user(id,name,...)
+  category(id,...)
+  product(id,cid,...)--cid索引
+  order(id,uid,...)--uid索引
+  orderItem(id,oid,pid,..)--oid索引
+
+  history([pid,])
+  cart(id,)
+  cartItem(id,cart_id,pid,...)
+
+  数据库层面设计：(详见sql文件deployment/init_db.sql)
+    history,cart,cartItem不持久化，其他实体持久化。
+    orderItem采用级联删除；其他关联关系通过外键关联，不级联删除。
+  业务层面设计：
+    不支持订单删除。
+
+
+功能实现规划:
+  以页面跳转/调用为线索，UI界面和对外接口可以分为前台，后台。两部分可以并行实现。
+  前后台，分别从各自首页开始实现，按照调用的拓扑结构，串行实现。
+  整个功能拓扑，可以按不同接口进行拆分；可以从同一个接口，按web层，service层，dao层进行拆分；拆分后的功能，可以并行实现。web层/service层/dao层之间有调用关系，需要提前明确接口。
+  web层负责页面的跳转，service层负责处理实体规则，dao负责实体持久层的增删改查。
+
+
+遗留事项：
+  tomcat使用最新版本。
+  各个单元设计不合理，没有提前设计单元测试用例考量单元的合理性。
+  ft
+  添加格式检查
+  添加安全检查
+  性能测试
+  更新的商品图片，在更新返回，几秒之后才能访问到。
+  操作的日志不全面，不整洁。
+  delete product前后，getall product返回的数量是一样的。是不是连接缓存了？
+  MapList将datetime转换成"2023-07-05T11:59:50"（原本的空格变成了字符T）
+  高并发：web层是瓶颈，web层抽离，采用无状态多副本，nginx进行LB。
+  高可用：service层，采用主备。
+  高性能：web层，减少文件持久化；
+  首页显示的分类，包含了所有分类，需要优化：按页获取分类，或者限制分类的数量。
+  自动登录cookie记录了明文密码。
+  支持https
+  k8s部署，微服务部署。
+
+
+UI界面和对外接口设计：
+  window使用多frame结构，一个window可以包含多个Html页面。
+
+  访问控制：admin/* 只对已登录管理员可见。order/* 只对已登录用户可见。
+
+  500.jsp
+  404.jsp
+
+  admin/login.jsp
+    包含接口链接：admin/user?method=login
+
+  admin/user?method=login&username=&password=&autologin=1&savename=
+    成功，返回admin/index.jsp
+    失败，返回admin/login.jsp。提示错误信息。
+
+    admin/index.jsp
+      包含接口链接：
+        admin/user?method=logout
+        admin/user?method=getByPage
+        admin/category?method=getByPage
+        admin/category?method=add
+        admin/product?method=getByPage
+        admin/product?method=add
+        admin/order?method=getByPage
+
+  admin/user?method=getByPage
+    系统故障（db故障）时，返回提示页面（msg.jsp），提示服务故障。
+    系统正常，参数非法（pageNumber=-1）时，返回提示页面，提示参数非法。
+    系统正常，参数合法，2页用户，pageNumber=100超出最大页码时，返回list.jsp，内容为空，分页为空。
+    系统正常，参数合法，2页用户，pageNumber=1时，返回list.jsp，内容，分页准确。
+
+  admin/user/list.jsp
+    包含接口链接：admin/user?method=editui, admin/user?method=delete
+
+    admin/user?method=editui
+      系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+      系统正常，参数非法（uid=null）时，返回提示页面，提示参数非法。
+      系统正常，参数非法（uid过长）时，返回提示页面，提示参数非法。
+      系统正常，参数非法（uid=noexist）时，返回提示页面，提示参数非法。
+      系统正常，参数合法（uid=从list页面获取）时，返回edit.jsp，user信息准确。
+    
+      admin/user/edit.jsp
+        包含接口链接：admin/user?method=update
+      
+        admin/user?method=update
+          系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+          系统正常，参数非法（uid=null）时，返回提示页面，提示参数非法。
+          系统正常，参数非法（uid过长）时，返回提示页面，提示参数非法。
+          系统正常，参数合法，业务不允许，如uid不存在 时，返回提示页面，提示xx不存在。
+          系统正常，参数合法，业务允许，返回list.jsp页面。更新准确。
+          系统正常，参数合法，业务允许(修改部分字段)，返回list.jsp页面。修改成功，空字段未更新。
+
+    admin/user?method=delete
+      系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+      系统正常，参数非法（uid=null）时，返回提示页面，提示参数非法。
+      系统正常，参数非法（uid过长）时，返回提示页面，提示参数非法。
+      系统正常，参数非法（uid=noexist）时，返回提示页面，提示xx不存在。
+      系统正常，参数合法，但是业务不允许，如uid=被订单条目依赖 时，返回提示页面，提示被依赖不允许删除。
+      系统正常，参数合法（uid=从list页面获取）时，返回list.jsp，user删除成功。
+
+  category、order、user三者jsp/接口的逻辑类似。
+    admin/category?method=list
+    admin/category?method=editui
+    admin/category?method=update
+    admin/category?method=delete
+    admin/category?method=addui
+    admin/category?method=add
+    admin/category/list.jsp
+    admin/category/edit.jsp
+    admin/category/add.jsp
+
+  admin/product?method=getByPage
+  admin/product?method=editui
+  admin/product?method=update
+  admin/product?method=delete
+  admin/product?method=addUI
+  admin/product?method=add
+  admin/product/list.jsp
+  admin/product/edit.jsp
+  admin/product/add.jsp
+
+  admin/order?method=getByPage
+  admin/order?method=udpatestate
+  admin/order?method=getInJson
+  admin/order/list.jsp
+
+  index.jsp
+    包含接口链接：
+      user/regist.jsp
+      user?method=loginUI
+      user?method=logout
+      cart.jsp
+      order?method=getByPage
+      category?method=getall
+      product?method=getByPage
+      product?method=getById&pid=''
+
+  user?method=loginUI
+    如果已经登录，返回index.jsp
+    如果没有登录，返回login.jsp
+
+    login.jsp
+      user名称不可用，提交按钮不可用。
+      user名称可用，提交按钮可用。返回index.jsp，登录成功。
+      记住用户名，退出后，登录页面，自动填充用户名。
+      自动登录，session失效后，自动登录。--忽略
+
+      /user/login
+        系统故障（db故障）时，返回原始页面，提示服务故障。--忽略
+        系统正常，参数非法（密码非法超出20个字符）时，返回原始页面，提示参数非法。
+        用户密码错误
+        用户未激活
+  /user/regist.jsp
+    必填字段未填写时，点击提交无效。
+    提交按钮有效：点击提交，返回index.jsp页面
+
+    /user/regist
+      系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+      系统正常，参数非法（属性非法，如name过长）时，返回提示页面，提示参数非法。
+      系统正常，参数非法（必填字段不存在，如name不存在）时，返回提示页面，提示参数非法。
+      系统正常，参数合法，业务不允许，如id已经存在 时，返回提示页面，提示xx已经存在。--忽略
+      系统正常，参数合法，业务允许，返回index.jsp页面。
+
+      /user/checkUsername
+        系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+        系统正常，参数非法（必填字段不存在，如name不存在）时，返回提示页面，提示参数非法。
+        系统正常，参数非法（属性非法，如name过长）时，返回提示页面，提示参数非法。
+        系统正常，参数合法，name不存在时，返回1
+        系统正常，参数合法，name存在时，返回2
+
+  /user/logout
+    返回index.jsp。处于退出状态（访问/order/list返回msg.jsp）。
+    自动登录cookie被清理。
+
+  /cart.jsp
+    无商品，显示无商品。
+    有商品，显示商品准确。
+    移除按钮可用。
+    清空购物车按钮可用
+    提交到订单可用。
+
+  /order/add
+    系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+    系统正常，购物车为空时，返回提示页面，提示异常信息。
+    系统正常，商品不存在 时，返回提示页面，提示异常信息。订单未生成。
+    系统正常，参数合法，业务允许，返回/order/info.jsp页面。用户新增一个订单，购物车清空。
+
+    /order/info.jsp
+      订单信息显示准确
+      电话收件人地址输入字段可用
+      电话收件人地址输入字段选填
+      支付按钮可用
+
+      /order/update
+        系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+        系统正常，参数非法，如oid=null 时，返回提示页面，提示异常。
+        系统正常，参数非法（order属性非法，如name过长）时，返回提示页面，提示参数非法。
+        系统正常，参数合法，业务不允许，如oid不存在 时，返回提示页面，提示异常。
+        系统正常，参数合法，业务不允许，如uid不匹配 时，返回提示页面，提示异常。
+        系统正常，参数合法，业务不允许，如state不处于待支付 时，返回提示页面，提示异常。
+        系统正常，参数合法，业务允许，提示支付成功页面。各个字段更新准确。
+
+  /category/list
+    系统故障（db故障）时，返回null。--忽略
+    系统正常，没有category时，返回空jsonarr。
+    系统正常，有category时，返回jsonarr准确。
+
+  /product/list
+    系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+    系统正常，参数非法（pageNumber=-1）时，返回提示页面，提示参数非法。
+    系统正常，参数合法，2页商品，pageNumber=100超出最大页码时，返回list页面，内容为空，分页为空。
+    系统正常，参数合法，2页商品，pageNumber=1超出最大页码时，返回list页面，内容，分页准确。
+
+    /product/list.jsp
+      页码准确，页码链接可用
+      浏览历史为空时显示准确
+      浏览历史不为空时显示准确
+      商品详情链接可用。
+      浏览历史-商品详情链接可用。
+      
+  /product/detail
+    系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+    系统正常，参数非法（pid=null）时，返回提示页面，提示参数非法。
+    系统正常，参数非法（pid=过长）时，返回提示页面，提示参数非法。
+    系统正常，参数非法（id=noexist）时，返回提示页面，提示xx不存在。
+    系统正常，参数合法时，返回/product/detail.jsp。显示商品信息准确。
+
+    /product/detail.jsp
+      数量输入框可用
+      提交按钮可用
+
+      /cart/put
+        系统正常，参数非法（pid=过长）时，返回提示页面，提示参数非法。
+        系统正常，参数非法（count=0）时，返回提示页面，提示参数非法。
+        系统正常，参数非法（id=noexist）时，返回提示页面，提示xx不存在。
+        系统正常，参数合法时，返回/cart.jsp
+      /cart/delete
+      /cart/clear
+  /order/list
+    系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+    系统正常，参数非法（pageNumber=-1）时，返回提示页面，提示参数非法。
+    系统正常，参数合法，2页订单，pageNumber=100超出最大页码时，返回list页面，内容为空，分页为空。
+    系统正常，参数合法，2页订单，pageNumber=1时，返回list页面，内容，分页准确。
+
+    /order/list.jsp
+      订单更新链接有效
+
+      /order/get
+        系统故障（db故障）时，返回提示页面，提示服务故障。--忽略
+        系统正常，参数非法（id=null）时，返回提示页面，提示参数非法。
+        系统正常，参数非法（id=""）时，返回提示页面，提示参数非法。
+        系统正常，参数非法，业务允许（id="noexist"）时，返回提示页面。
+        系统正常，参数合法，业务允许，返回/order/info.jsp页面。
+
+
+
+笔记：
+  tomcat应用管理接口
+    curl -H "Cookie: JSESSIONID=<>" http://localhost:8080/manager/text/reload?path=/bookstore
+    curl -H "Cookie: JSESSIONID=<>" http://localhost:8080/manager/text/deploy?path=/bookstore&war=file:/bookstore.war
+  jar包安装到maven本地仓库
+    mvn install:install-file -DgroupId=cn.itcast  -DartifactId=tools -Dversion=1.4.2 -Dpackaging=jar -Dfile=/media/wenlin/A8FABA2BFAB9F622/workspace/bookstore1/src/main/webapp/WEB-INF/lib/itcast-tools-1.4.2.jar
+  eclipse上web项目编译部署的最佳实践：
+    创建dynamic web项目（webapp目录指定为/src/main/webapp）
+    （右键configure）转换成maven项目。
+    右键run as->maven build（指定goals: clean package；profile: pom.xml）
+    将编译生成的lib拷贝到/src/main/webapp/WEB-INF下
+    Run on server（完成tomcat启动Web App部署，并启动首页访问。）
+  开发/部署/测试环境搭建。
+    openjdk-1.8已经安装
+      apt-get install openjdk-8-jdk
+      apt-get list --installed | grep jdk
+      export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+    容器部署tomcat
+      docker pull tomcat:8.5.84
+      app从env中获取变量
+    maven安装/配置
+      export PATH=/home/wenlin/opt/apache-maven-3.8.6/bin:$PATH
+      ~/.m2/repository存放jar包
+      ~/.m2/settings.xml
+        镜像仓库-阿里
+    maven创建javaweb项目
+      mvn archetype:generate \
+            -DarchetypeGroupId=org.apache.maven.archetypes \
+            -DarchetypeArtifactId=maven-archetype-webapp \
+            -DgroupId=com.mycompany.app \
+            -DartifactId=my_store
+      mkdir -p src/main/java/com/mycompany/app
+      mkdir -p src/test/java/com/mycompany/app
+      打包的规则（对jar和war）
+        main/resources放到classes目录下
+        webapp放到应用根目录下
+    编码环境配置
+      eclipse配置mvn
+      eclipse配置tomcat
+      eclipse配置java
+      eclipse配置字体courier new
+      eclipse配置格式
+      将项目导入eclipse
+    部署mysql
+      指定db和client的字符集为utf8，避免client采用其他字符集读取数据。
+  test
+    https://junit.org/junit4/javadoc/latest/; https://zhuanlan.zhihu.com/p/86624354
+  gif2png
+    https://uutool.cn/gif2img/
+  gif压缩
+    https://docsmall.com/gif-compress
+  github仓库首页显示视频
+    Step 6: Click on the pencil icon button to edit the README.md file.
+    Step 7: Drag and drop the video that you want to add to the README file. 
+    https://www.geeksforgeeks.org/how-to-add-videos-on-readme-md-file-in-a-github-repository/

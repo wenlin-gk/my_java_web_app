@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Configuration status="WARN"> <!-- status : 指定log4j本身的打印日志的级别 -->
+  <Properties>
+    <property name="PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36}-%L - %msg%n</property>
+  </Properties>
+
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <ThresholdFilter level="info" onMatch="ACCEPT" onMismatch="DENY" />
+      <PatternLayout pattern="${PATTERN}" />
+    </Console>
+  </Appenders>
+
+  <Loggers>
+    <root level="info">
+      <appender-ref ref="Console" />
+    </root>
+  </Loggers>
+</Configuration>
